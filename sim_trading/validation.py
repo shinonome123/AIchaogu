@@ -9,6 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 from sim_trading.execution import SimulationExecutor
+from sim_trading.experiments import build_experiment_gate, compute_validation_metrics, record_experiment_run
 from sim_trading.ledger import LedgerService
 from sim_trading.market import build_signal_run_entry
 from sim_trading.models import decimal_to_str, now_iso, to_decimal
@@ -161,7 +162,24 @@ class StrategyValidator:
             (gross_profit / gross_loss_abs) if gross_loss_abs > 0 else Decimal("0")
         )
         longest_losing_streak = _longest_losing_streak(closed_rows)
-        status = "ok" if return_pct > 0 else ("watch" if return_pct == 0 else "alert")
+        metrics = compute_validation_metrics(
+            equity_rows=temp_equity_rows,
+            return_pct=return_pct,
+            max_drawdown_pct=max_drawdown_pct,
+        )
+        annualized_return = to_decimal(metrics["annualized_return"])
+        annualized_volatility = to_decimal(metrics["annualized_volatility"])
+        sharpe = to_decimal(metrics["sharpe"])
+        sortino = to_decimal(metrics["sortino"])
+        calmar = to_decimal(metrics["calmar"])
+        profit_factor_decimal = to_decimal(profit_factor) if profit_factor != "inf" else Decimal("999")
+        gate = build_experiment_gate(
+            return_pct=return_pct,
+            sharpe=sharpe,
+            max_drawdown_pct=max_drawdown_pct,
+            profit_factor=profit_factor_decimal,
+        )
+        status = "ok" if gate["status"] == "pass" else ("watch" if gate["status"] == "watch" else "alert")
         entry = {
             "validation_id": validation_id,
             "timestamp": run_time,
@@ -179,16 +197,50 @@ class StrategyValidator:
             "win_rate": decimal_to_str(win_rate),
             "profit_factor": profit_factor,
             "longest_losing_streak": longest_losing_streak,
+            "annualized_return": decimal_to_str(annualized_return),
+            "annualized_volatility": decimal_to_str(annualized_volatility),
+            "sharpe": decimal_to_str(sharpe),
+            "sortino": decimal_to_str(sortino),
+            "calmar": decimal_to_str(calmar),
+            "recovery_time_bars": metrics["recovery_time_bars"],
             "closed_trade_count": len(closed_rows),
             "winning_trades": len(winners),
             "losing_trades": len(losers),
             "execution_runs": len(temp_execution_runs),
+            "experiment_gate": gate,
             "summary": (
                 f"return={decimal_to_str(return_pct)} "
                 + f"max_dd={decimal_to_str(max_drawdown_pct)} "
-                + f"win_rate={decimal_to_str(win_rate)} "
-                + f"profit_factor={profit_factor}"
+                + f"sharpe={decimal_to_str(sharpe)} "
+                + f"gate={gate['status']}"
             ),
         }
         append_jsonl(service.paths.validation_runs, entry)
+        record_experiment_run(
+            state_dir=service.paths.root,
+            entry={
+                "experiment_id": validation_id,
+                "timestamp": run_time,
+                "source": source,
+                "kind": "walk_forward_validation",
+                "period_start": entry["period_start"],
+                "period_end": entry["period_end"],
+                "lookback_points": requested_lookback,
+                "step_points": requested_step,
+                "starting_capital": entry["starting_capital"],
+                "return_pct": entry["return_pct"],
+                "max_drawdown_pct": entry["max_drawdown_pct"],
+                "win_rate": entry["win_rate"],
+                "profit_factor": entry["profit_factor"],
+                "annualized_return": entry["annualized_return"],
+                "annualized_volatility": entry["annualized_volatility"],
+                "sharpe": entry["sharpe"],
+                "sortino": entry["sortino"],
+                "calmar": entry["calmar"],
+                "recovery_time_bars": entry["recovery_time_bars"],
+                "status": status,
+                "experiment_gate": gate,
+                "summary": entry["summary"],
+            },
+        )
         return ValidationRunResult(entry=entry)

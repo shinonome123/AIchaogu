@@ -10,6 +10,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 from sim_trading.dashboard_data import build_dashboard_status_payload, build_strategy_detail
+from sim_trading.experiments import load_experiment_runs, load_latest_experiment_run
 from sim_trading.dashboard_ui import render_dashboard_page
 from sim_trading.notifier import notify_task
 from sim_trading.ops import build_health_snapshot
@@ -241,7 +242,7 @@ def make_dashboard_handler(config: DashboardServerConfig) -> type[BaseHTTPReques
                 _send_json(self, HTTPStatus.OK, payload)
                 return
 
-            if parsed.path in {"/", "/api/status", "/api/strategy"} and config.auth.is_configured():
+            if parsed.path in {"/", "/api/status", "/api/strategy", "/api/experiments/latest", "/api/experiments/history"} and config.auth.is_configured():
                 authorized, auth_headers = _check_dashboard_auth(self, config)
                 if not authorized:
                     return
@@ -293,6 +294,32 @@ def make_dashboard_handler(config: DashboardServerConfig) -> type[BaseHTTPReques
                     _send_json(self, HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(exc)})
                     return
                 _send_json(self, HTTPStatus.OK, payload, extra_headers=auth_headers)
+                return
+
+            if parsed.path == "/api/experiments/latest":
+                _send_json(
+                    self,
+                    HTTPStatus.OK,
+                    {"ok": True, "latest_experiment_run": load_latest_experiment_run(config.state_dir)},
+                    extra_headers=auth_headers,
+                )
+                return
+
+            if parsed.path == "/api/experiments/history":
+                query = parse_qs(parsed.query)
+                limit = 20
+                if "n" in query:
+                    try:
+                        limit = max(1, min(200, int(query["n"][0])))
+                    except ValueError:
+                        _send_json(self, HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid n query parameter"})
+                        return
+                _send_json(
+                    self,
+                    HTTPStatus.OK,
+                    {"ok": True, "items": load_experiment_runs(config.state_dir, limit=limit)},
+                    extra_headers=auth_headers,
+                )
                 return
 
             _send_json(self, HTTPStatus.NOT_FOUND, {"ok": False, "error": "unknown endpoint"})

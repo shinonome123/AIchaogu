@@ -40,9 +40,12 @@ from sim_trading.security import (
     upsert_env_file,
 )
 from sim_trading.strategy_tracks import (
+    build_strategy_signal_entry,
     build_strategy_comparison,
     format_strategy_compare_table,
+    load_strategy_selection,
     run_strategy_track,
+    set_strategy_selection,
 )
 from sim_trading.report import generate_daily_report
 from sim_trading.servers import (
@@ -740,6 +743,18 @@ def cmd_execute_sim(args: argparse.Namespace) -> int:
             )
         except DeepSeekDecisionError as exc:
             raise RuntimeError(f"approved DS decision could not be converted: {exc}") from exc
+    elif args.decision_source == "strategy-selected":
+        selection = load_strategy_selection(args.state_dir)
+        selected = selection.get("selected_strategy")
+        if not selection.get("enabled") or not selected:
+            raise RuntimeError("strategy-selected execution is not enabled; run strategy-selection set --strategy <name>")
+        signal_entry = build_strategy_signal_entry(
+            args.state_dir,
+            strategy=str(selected),
+            timestamp=args.timestamp,
+            lookback_points=args.lookback_points,
+            source=args.source,
+        )
 
     result = executor.execute_cycle(
         timestamp=args.timestamp,
@@ -807,6 +822,27 @@ def cmd_execute_sim(args: argparse.Namespace) -> int:
             timestamp=str(entry["timestamp"]),
         )
         print(human_summary(notify_result))
+    return 0
+
+
+def cmd_strategy_selection(args: argparse.Namespace) -> int:
+    if args.action == "status":
+        selection = load_strategy_selection(args.state_dir)
+    elif args.action == "set":
+        if not args.strategy:
+            raise ValueError("--strategy is required when action is 'set'")
+        selection = set_strategy_selection(
+            args.state_dir,
+            strategy=args.strategy,
+            enabled=True,
+        )
+    else:
+        selection = set_strategy_selection(
+            args.state_dir,
+            strategy=None,
+            enabled=False,
+        )
+    print(json.dumps(selection, indent=2, sort_keys=True))
     return 0
 
 
@@ -1136,12 +1172,20 @@ def build_parser() -> argparse.ArgumentParser:
     add_report_log_argument(execute_parser, suppress_default=True)
     add_hook_command_argument(execute_parser)
     execute_parser.add_argument("--source", default="cli.execute-sim")
-    execute_parser.add_argument("--decision-source", choices=["signals", "ds-approved"], default="signals")
+    execute_parser.add_argument("--decision-source", choices=["signals", "ds-approved", "strategy-selected"], default="signals")
     execute_parser.add_argument("--lookback-points", type=int, default=6)
     execute_parser.add_argument("--price", action="append")
     execute_parser.add_argument("--timestamp")
     execute_parser.add_argument("--notify", action="store_true")
     execute_parser.set_defaults(func=cmd_execute_sim)
+
+    strategy_selection_parser = subparsers.add_parser(
+        "strategy-selection",
+        help="view or update main-account strategy selection used by execute-sim --decision-source strategy-selected",
+    )
+    strategy_selection_parser.add_argument("action", choices=["status", "set", "clear"])
+    strategy_selection_parser.add_argument("--strategy", choices=["baseline", "ds_conservative", "ds_aggressive"])
+    strategy_selection_parser.set_defaults(func=cmd_strategy_selection)
 
     risk_status_parser = subparsers.add_parser("risk-status", help="show current hard-risk gate state and optionally toggle kill switch")
     add_state_dir_argument(risk_status_parser, suppress_default=True)
