@@ -58,8 +58,8 @@ Fetch prices and build a signal snapshot:
 ```bash
 python3 -m sim_trading --state-dir demo/state fetch-market \
   --symbol BTC/USDT \
-  --symbol DOT/USDT \
-  --symbol LINK/USDT
+  --symbol ETH/USDT \
+  --symbol SOL/USDT
 
 python3 -m sim_trading --state-dir demo/state run-signals \
   --report-log demo/reports-log.jsonl \
@@ -117,6 +117,12 @@ python3 -m sim_trading --state-dir demo/state execute-sim \
   --report-log demo/reports-log.jsonl \
   --lookback-points 6 \
   --notify
+
+# optional: make the root portfolio follow one strategy track
+python3 -m sim_trading --state-dir demo/state strategy-selection set --strategy baseline
+python3 -m sim_trading --state-dir demo/state execute-sim \
+  --decision-source strategy-selected \
+  --lookback-points 6
 ```
 
 The execution engine converts target weights into simulated orders and fills, writes append-only lifecycle events to `state/order_events.jsonl`, summarizes each cycle in `state/execution_runs.jsonl`, and applies configured slippage plus fees.
@@ -183,6 +189,8 @@ The dashboard exposes:
 - `/`
 - `/api/status`
 - `/api/strategy?name=baseline|ds_conservative|ds_aggressive`
+- `/api/experiments/latest`
+- `/api/experiments/history?n=20`
 - `/api/health`
 
 The web UI defaults to Chinese. Append `?lang=en` or switch the selector in the header for English. Append `?view=overview`, `?view=baseline`, `?view=ds_conservative`, or `?view=ds_aggressive` to open a specific workspace tab directly.
@@ -199,6 +207,7 @@ Navigation behavior:
 - latest execution summary (`latest_execution_run`)
 - hard-risk gate state and the last circuit-breaker event (`risk_status`, `last_circuit_breaker_event`)
 - latest validation summary (`latest_validation_run`)
+- latest experiment evaluation run plus a compact history (`latest_experiment_run`, `experiment_history`)
 - DS operator summaries (`ds_mode`, `latest_ds_decision`, `latest_ds_rejection`, `latest_ds_approval`)
 - universe status (`universe_status`)
 - cross-strategy metrics (`strategy_compare`)
@@ -224,6 +233,7 @@ The dashboard renders:
 - execution, risk, validation, and DS panels that stay available without removing the existing feature set
 - a universe panel with all / filtered / Top 120 / Top 30 counts and the latest refresh timestamp
 - a strategy comparison panel with return, max drawdown, win rate, profit factor, turnover, and risk-trigger count
+- strategy comparison now also includes a recommended allocation weight per track plus a lead-strategy hint derived from risk-adjusted scoring
 
 ## Security and ops
 
@@ -290,7 +300,7 @@ The new `tick` flow keeps the existing 3-hour report cadence and adds:
 
 Useful overrides:
 
-- `MARKET_SYMBOLS=BTC/USDT,DOT/USDT,LINK/USDT`
+- `MARKET_SYMBOLS=BTC/USDT,ETH/USDT,SOL/USDT` (example override, fully customizable)
 - `MARKET_SOURCE=binance`
 - `MARKET_API_ROOT=https://api.binance.com`
 - `UNIVERSE_API_ROOT=https://api.binance.com`

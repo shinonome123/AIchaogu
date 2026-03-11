@@ -126,6 +126,10 @@ class StoragePaths:
         return self.root / "validation_runs.jsonl"
 
     @property
+    def experiment_runs(self) -> Path:
+        return self.root / "experiment_runs.jsonl"
+
+    @property
     def webhook_nonces(self) -> Path:
         return self.root / "webhook_nonces.json"
 

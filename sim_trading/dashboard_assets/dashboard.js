@@ -24,6 +24,17 @@
         latest_ds_suggestions: "最新 DS 建议",
         latest_ds_rejection: "最新拒绝原因",
         latest_notifications: "最新通知",
+        experiment_runs: "实验评估",
+        ops_tabs: "运维标签",
+        strategy_control: "策略跟随",
+        ops_tab_control: "跟随",
+        ops_tab_execution: "执行",
+        ops_tab_risk: "风控",
+        ops_tab_validation: "验证",
+        ops_tab_ds: "DS",
+        strategy_follow_enabled: "主仓跟随已启用",
+        strategy_follow_disabled: "主仓跟随未启用",
+        selected_strategy: "已选策略",
         universe_status: "选币宇宙状态",
         strategy_compare: "策略对比",
         strategy_workspace: "策略工作区",
@@ -125,6 +136,7 @@
         profit_factor: "盈亏比",
         turnover: "换手率",
         risk_triggers: "风险触发",
+        recommended_weight: "建议权重",
         longest_losing_streak: "最长连亏",
         consecutive_losses: "连续亏损",
         cycle: "周期",
@@ -160,6 +172,14 @@
         overview_best: "最佳收益",
         strategy_rule: "策略说明",
         updated_at: "更新时间",
+        annualized_return: "年化收益",
+        annualized_volatility: "年化波动",
+        sharpe: "夏普",
+        sortino: "索提诺",
+        calmar: "卡玛",
+        gate_status: "门槛结论",
+        status_pass: "通过",
+        status_fail: "失败",
       },
       en: {
         page_title: "Sim Trading Dashboard",
@@ -185,6 +205,17 @@
         latest_ds_suggestions: "Latest DS Suggestions",
         latest_ds_rejection: "Latest DS Rejection",
         latest_notifications: "Latest Notifications",
+        experiment_runs: "Experiment Runs",
+        ops_tabs: "Ops Tabs",
+        strategy_control: "Strategy Follow",
+        ops_tab_control: "Follow",
+        ops_tab_execution: "Execution",
+        ops_tab_risk: "Risk",
+        ops_tab_validation: "Validation",
+        ops_tab_ds: "DS",
+        strategy_follow_enabled: "Root portfolio follow mode enabled",
+        strategy_follow_disabled: "Root portfolio follow mode disabled",
+        selected_strategy: "Selected Strategy",
         universe_status: "Universe Status",
         strategy_compare: "Strategy Comparison",
         strategy_workspace: "Strategy Workspace",
@@ -286,6 +317,7 @@
         profit_factor: "Profit Factor",
         turnover: "Turnover",
         risk_triggers: "Risk Triggers",
+        recommended_weight: "Suggested Weight",
         longest_losing_streak: "Longest Losing Streak",
         consecutive_losses: "Consecutive Losses",
         cycle: "cycle",
@@ -321,6 +353,14 @@
         overview_best: "Best Return",
         strategy_rule: "Strategy Note",
         updated_at: "Updated",
+        annualized_return: "Annualized Return",
+        annualized_volatility: "Annualized Volatility",
+        sharpe: "Sharpe",
+        sortino: "Sortino",
+        calmar: "Calmar",
+        gate_status: "Gate",
+        status_pass: "pass",
+        status_fail: "fail",
       },
     };
 
@@ -329,6 +369,7 @@
     let lastPayload = null;
     let lastHealth = null;
     let resizeTimer = null;
+    let activeOpsTab = "control";
     const strategyCache = new Map();
 
     function t(key, vars = {}) {
@@ -395,7 +436,7 @@
 
     function statusClass(status) {
       const normalized = String(status || "").toLowerCase();
-      if (["alert", "bearish", "rejected", "blocked"].includes(normalized)) return "status-alert";
+      if (["alert", "bearish", "rejected", "blocked", "fail"].includes(normalized)) return "status-alert";
       if (["watch", "flat", "insufficient", "partial", "canceled"].includes(normalized)) return "status-watch";
       return "status-ok";
     }
@@ -604,9 +645,10 @@
 
       const validationRun = snapshot.latest_validation_run;
       if (validationRun) {
-        document.getElementById("validation-status").textContent = pct(validationRun.return_pct || 0);
-        document.getElementById("validation-status").className = `value ${statusClass(validationRun.status || "watch")}`;
-        document.getElementById("validation-meta").textContent = `${t("max_drawdown")}: ${pct(validationRun.max_drawdown_pct || 0)}`;
+        const gateStatus = validationRun.experiment_gate?.status || "watch";
+        document.getElementById("validation-status").textContent = `${t("gate_status")}: ${localizedStatus(gateStatus)}`;
+        document.getElementById("validation-status").className = `value ${statusClass(gateStatus)}`;
+        document.getElementById("validation-meta").textContent = `${t("sharpe")}: ${Number(validationRun.sharpe || 0).toFixed(2)} | ${t("max_drawdown")}: ${pct(validationRun.max_drawdown_pct || 0)}`;
       } else {
         document.getElementById("validation-status").textContent = "--";
         document.getElementById("validation-status").className = "value";
@@ -791,6 +833,79 @@
       `).join("");
     }
 
+    function renderExperiments(items) {
+      const list = document.getElementById("experiment-list");
+      const rows = Array.isArray(items) ? items : [];
+      document.getElementById("experiment-meta").textContent = t("showing_limit", { count: rows.length });
+      if (!rows.length) {
+        list.innerHTML = `<li class="empty">${escapeHtml(t("no_validation"))}</li>`;
+        return;
+      }
+      list.innerHTML = rows.map((entry) => {
+        const gateStatus = entry.experiment_gate?.status || "watch";
+        return `
+          <li>
+            <div>
+              <strong>${escapeHtml(entry.experiment_id || "n/a")}</strong>
+              <span class="${escapeHtml(statusClass(gateStatus))}">${escapeHtml(localizedStatus(gateStatus))}</span>
+            </div>
+            <div class="meta">${escapeHtml(compactTime(entry.timestamp))} | ${escapeHtml(t("return_pct"))}: ${escapeHtml(pct(entry.return_pct || 0))}</div>
+            <div class="meta">${escapeHtml(t("sharpe"))}: ${escapeHtml(Number(entry.sharpe || 0).toFixed(2))} | ${escapeHtml(t("max_drawdown"))}: ${escapeHtml(pct(entry.max_drawdown_pct || 0))}</div>
+            <div class="meta">${escapeHtml(entry.summary || "")}</div>
+          </li>
+        `;
+      }).join("");
+    }
+
+    function renderOpsTabs() {
+      const items = [
+        { id: "control", label: t("ops_tab_control") },
+        { id: "execution", label: t("ops_tab_execution") },
+        { id: "risk", label: t("ops_tab_risk") },
+        { id: "validation", label: t("ops_tab_validation") },
+        { id: "ds", label: t("ops_tab_ds") },
+      ];
+      const container = document.getElementById("ops-tabs");
+      container.innerHTML = items.map((item) => `
+        <button class="panel-tab ${item.id === activeOpsTab ? "is-active" : ""}" data-ops-tab="${escapeHtml(item.id)}" type="button">
+          ${escapeHtml(item.label)}
+        </button>
+      `).join("");
+      Array.from(container.querySelectorAll("button[data-ops-tab]")).forEach((button) => {
+        button.addEventListener("click", () => {
+          activeOpsTab = button.dataset.opsTab || "control";
+          applyOpsTabVisibility();
+          renderOpsTabs();
+        });
+      });
+      applyOpsTabVisibility();
+    }
+
+    function applyOpsTabVisibility() {
+      const ids = ["control", "execution", "risk", "validation", "ds"];
+      ids.forEach((id) => {
+        const node = document.getElementById(`ops-panel-${id}`);
+        if (!node) return;
+        if (id === activeOpsTab) node.classList.remove("hidden");
+        else node.classList.add("hidden");
+      });
+    }
+
+    function renderStrategyControl(snapshot) {
+      const selection = snapshot?.strategy_selection || {};
+      const list = document.getElementById("strategy-control-list");
+      const enabled = Boolean(selection.enabled);
+      const selected = selection.selected_strategy || "--";
+      document.getElementById("strategy-control-meta").textContent = compactTime(snapshot?.timestamp || "n/a");
+      list.innerHTML = `
+        <li>
+          <div><strong>${escapeHtml(enabled ? t("strategy_follow_enabled") : t("strategy_follow_disabled"))}</strong></div>
+          <div class="meta">${escapeHtml(t("selected_strategy"))}: ${escapeHtml(String(selected))}</div>
+          <div class="meta">execute-sim --decision-source strategy-selected</div>
+        </li>
+      `;
+    }
+
     function renderStrategyTabs(tabs) {
       const container = document.getElementById("strategy-tabs");
       container.innerHTML = tabs.map((tab) => {
@@ -822,10 +937,17 @@
     function renderStrategyCompare(snapshot) {
       const compare = snapshot.strategy_compare || {};
       const body = document.getElementById("strategy-compare-body");
-      document.getElementById("strategy-compare-meta").textContent = compactTime(compare.generated_at || "n/a");
+      const recommendation = compare.recommended_allocation || {};
+      const recommendedWeights = new Map(
+        (Array.isArray(recommendation.weights) ? recommendation.weights : [])
+          .filter((item) => item && item.strategy)
+          .map((item) => [String(item.strategy), Number(item.weight || 0)]),
+      );
+      const lead = recommendation.lead_strategy ? ` | lead=${recommendation.lead_strategy}` : "";
+      document.getElementById("strategy-compare-meta").textContent = `${compactTime(compare.generated_at || "n/a")}${lead}`;
       const rows = Array.isArray(compare.strategies) ? compare.strategies : [];
       if (!rows.length) {
-        body.innerHTML = `<tr><td class="empty" colspan="7">${escapeHtml(t("no_strategy_compare"))}</td></tr>`;
+        body.innerHTML = `<tr><td class="empty" colspan="8">${escapeHtml(t("no_strategy_compare"))}</td></tr>`;
         return;
       }
       body.innerHTML = rows.map((row) => `
@@ -837,6 +959,7 @@
           <td>${row.profit_factor == null ? escapeHtml(t("not_initialized")) : escapeHtml(String(row.profit_factor))}</td>
           <td>${row.turnover_ratio == null ? escapeHtml(t("not_initialized")) : escapeHtml(pct(row.turnover_ratio))}</td>
           <td>${escapeHtml(String(row.risk_trigger_count || 0))}</td>
+          <td>${recommendedWeights.has(String(row.strategy || "")) ? escapeHtml(pct(recommendedWeights.get(String(row.strategy || "")))) : escapeHtml(t("not_initialized"))}</td>
         </tr>
       `).join("");
     }
@@ -1082,6 +1205,8 @@
           <div><span class="pill">${escapeHtml(localizedStatus(validationRun.status || "unknown"))}</span>${escapeHtml(validationRun.summary || "")}</div>
           <div class="meta">${escapeHtml(t("return_pct"))}: ${escapeHtml(pct(validationRun.return_pct || 0))}</div>
           <div class="meta">${escapeHtml(t("max_drawdown"))}: ${escapeHtml(pct(validationRun.max_drawdown_pct || 0))}</div>
+          <div class="meta">${escapeHtml(t("annualized_return"))}: ${escapeHtml(pct(validationRun.annualized_return || 0))} | ${escapeHtml(t("annualized_volatility"))}: ${escapeHtml(pct(validationRun.annualized_volatility || 0))}</div>
+          <div class="meta">${escapeHtml(t("sharpe"))}: ${escapeHtml(Number(validationRun.sharpe || 0).toFixed(2))} | ${escapeHtml(t("sortino"))}: ${escapeHtml(Number(validationRun.sortino || 0).toFixed(2))} | ${escapeHtml(t("calmar"))}: ${escapeHtml(Number(validationRun.calmar || 0).toFixed(2))}</div>
         </li>
         <li>
           <div><strong>${escapeHtml(t("win_rate"))}</strong></div>
@@ -1218,6 +1343,7 @@
 
     function renderAll() {
       applyI18n();
+      renderOpsTabs();
       if (!lastPayload) {
         return;
       }
@@ -1225,6 +1351,8 @@
       renderSignals(lastPayload.latest_signal_run, lastPayload.latest_market_fetch);
       renderUniverse(lastPayload.snapshot);
       renderNotifications(lastPayload.latest_notifications || []);
+      renderExperiments(lastPayload.experiment_history || []);
+      renderStrategyControl(lastPayload.snapshot);
       renderStrategyWorkspace();
       if (lastHealth) {
         renderHealth(lastHealth);
@@ -1274,11 +1402,13 @@
       document.getElementById("ds-list").innerHTML = `<li class="empty">${escapeHtml(text)}</li>`;
       document.getElementById("ds-rejection-list").innerHTML = `<li class="empty">${escapeHtml(text)}</li>`;
       document.getElementById("price-trends-grid").innerHTML = `<div class="empty">${escapeHtml(text)}</div>`;
-      document.getElementById("strategy-compare-body").innerHTML = `<tr><td colspan="7" class="empty">${escapeHtml(text)}</td></tr>`;
+      document.getElementById("strategy-compare-body").innerHTML = `<tr><td colspan="8" class="empty">${escapeHtml(text)}</td></tr>`;
       document.getElementById("positions-body").innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(text)}</td></tr>`;
       document.getElementById("strategy-positions-body").innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(text)}</td></tr>`;
       document.getElementById("strategy-trades-body").innerHTML = `<tr><td colspan="4" class="empty">${escapeHtml(text)}</td></tr>`;
       document.getElementById("strategy-events-list").innerHTML = `<li class="empty">${escapeHtml(text)}</li>`;
+      document.getElementById("experiment-list").innerHTML = `<li class="empty">${escapeHtml(text)}</li>`;
+      document.getElementById("strategy-control-list").innerHTML = `<li class="empty">${escapeHtml(text)}</li>`;
     }
 
     async function refresh() {

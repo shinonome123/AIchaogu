@@ -233,6 +233,30 @@
       margin-bottom: 14px;
     }
 
+    .panel-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .panel-tab {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel-strong);
+      color: var(--ink);
+      padding: 6px 12px;
+      font: inherit;
+      cursor: pointer;
+      font-size: 0.82rem;
+    }
+
+    .panel-tab.is-active {
+      background: rgba(29, 107, 111, 0.14);
+      border-color: rgba(29, 107, 111, 0.32);
+      color: var(--accent);
+      font-weight: 700;
+    }
+
     .tab-button {
       border: 1px solid var(--line);
       border-radius: 16px;
