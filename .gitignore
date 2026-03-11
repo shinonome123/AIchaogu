@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.DS_Store
+.ops.env
+.ops/
+
+demo/state/
+demo/state.stale-*/
+demo/reports/
+demo/reports-log.jsonl

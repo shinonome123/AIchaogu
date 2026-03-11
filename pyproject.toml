@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sim-trading"
+version = "0.2.0"
+description = "Simulation-only trading ledger and reporting toolkit"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+sim-trading-init = "sim_trading.cli:main_init"
+sim-trading-record-trade = "sim_trading.cli:main_record_trade"
+sim-trading-normalize-positions = "sim_trading.cli:main_normalize_positions"
+sim-trading-snapshot = "sim_trading.cli:main_snapshot"
+sim-trading-status = "sim_trading.cli:main_status"
+sim-trading-report = "sim_trading.cli:main_report"
+sim-trading-notify-task = "sim_trading.cli:main_notify_task"
+sim-trading-emit-status-report = "sim_trading.cli:main_emit_status_report"
+sim-trading-serve-webhook = "sim_trading.cli:main_serve_webhook"
+sim-trading-serve-dashboard = "sim_trading.cli:main_serve_dashboard"
+sim-trading-rotate-tokens = "sim_trading.cli:main_rotate_tokens"
+sim-trading-health-check = "sim_trading.cli:main_health_check"
+sim-trading-fetch-market = "sim_trading.cli:main_fetch_market"
+sim-trading-universe-refresh = "sim_trading.cli:main_universe_refresh"
+sim-trading-run-signals = "sim_trading.cli:main_run_signals"
+sim-trading-strategy-run = "sim_trading.cli:main_strategy_run"
+sim-trading-strategy-compare = "sim_trading.cli:main_strategy_compare"
+sim-trading-ds-shadow-run = "sim_trading.cli:main_ds_shadow_run"
+sim-trading-ds-approve-latest = "sim_trading.cli:main_ds_approve_latest"
+sim-trading-execute-sim = "sim_trading.cli:main_execute_sim"
+sim-trading-risk-status = "sim_trading.cli:main_risk_status"
+sim-trading-risk-check = "sim_trading.cli:main_risk_check"
+sim-trading-validate-strategy = "sim_trading.cli:main_validate_strategy"
+
+[tool.setuptools.packages.find]
+include = ["sim_trading*"]

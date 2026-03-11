@@ -1,0 +1,53 @@
+{
+  "generated_at": "2026-03-11T11:45:00+08:00",
+  "strategies": [
+    {
+      "daily_loss_breaker_pct": "-0.03",
+      "ds_bias": null,
+      "initialized": true,
+      "max_drawdown_pct": "-0.00089953",
+      "nav": "99.9100474",
+      "position_count": 10,
+      "profit_factor": "0",
+      "return_pct": "-0.00089953",
+      "risk_trigger_count": 0,
+      "state_dir": "/private/tmp/codex-sim-universe-20260311-164805/demo/state/strategies/baseline",
+      "strategy": "baseline",
+      "turnover_ratio": "0.59978392",
+      "uses_ds": false,
+      "win_rate": "0"
+    },
+    {
+      "daily_loss_breaker_pct": "-0.025",
+      "ds_bias": "cautious",
+      "initialized": true,
+      "max_drawdown_pct": "-0.00060004",
+      "nav": "99.93999576",
+      "position_count": 8,
+      "profit_factor": "0",
+      "return_pct": "-0.00060004",
+      "risk_trigger_count": 0,
+      "state_dir": "/private/tmp/codex-sim-universe-20260311-164805/demo/state/strategies/ds_conservative",
+      "strategy": "ds_conservative",
+      "turnover_ratio": "0.40009493",
+      "uses_ds": true,
+      "win_rate": "0"
+    },
+    {
+      "daily_loss_breaker_pct": "-0.04",
+      "ds_bias": "normal",
+      "initialized": true,
+      "max_drawdown_pct": "-0.00060004",
+      "nav": "99.93999576",
+      "position_count": 8,
+      "profit_factor": "0",
+      "return_pct": "-0.00060004",
+      "risk_trigger_count": 0,
+      "state_dir": "/private/tmp/codex-sim-universe-20260311-164805/demo/state/strategies/ds_aggressive",
+      "strategy": "ds_aggressive",
+      "turnover_ratio": "0.40009493",
+      "uses_ds": true,
+      "win_rate": "0"
+    }
+  ]
+}

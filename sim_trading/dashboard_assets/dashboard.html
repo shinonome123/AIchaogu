@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>模拟交易监控台</title>
+  <style>
+__DASHBOARD_CSS__
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div>
+        <p class="eyebrow" data-i18n="auto_refresh"></p>
+        <h1 data-i18n="title"></h1>
+        <p class="subhead" data-i18n="subtitle"></p>
+        <div class="hero-meta">
+          <span class="mode-badge" id="mode-badge">--</span>
+          <span class="hero-note" id="mode-note">--</span>
+        </div>
+        <div class="hero-source" id="mode-source"></div>
+      </div>
+      <div class="lang-switch">
+        <label for="lang-select" data-i18n="lang_label"></label>
+        <select id="lang-select">
+          <option value="zh">中文</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+    </section>
+
+    <section class="cards">
+      <section class="card">
+        <div class="label" data-i18n="nav"></div>
+        <div class="value" id="nav">--</div>
+        <div class="meta" id="nav-meta">--</div>
+      </section>
+      <section class="card">
+        <div class="label" data-i18n="realized_pnl"></div>
+        <div class="value" id="realized">--</div>
+        <div class="meta" id="realized-meta">--</div>
+      </section>
+      <section class="card">
+        <div class="label" data-i18n="unrealized_pnl"></div>
+        <div class="value" id="unrealized">--</div>
+        <div class="meta" id="unrealized-meta">--</div>
+      </section>
+      <section class="card">
+        <div class="label" data-i18n="drawdown"></div>
+        <div class="value" id="drawdown">--</div>
+        <div class="meta" id="drawdown-meta">--</div>
+      </section>
+      <section class="card">
+        <div class="label" data-i18n="positions"></div>
+        <div class="value" id="positions-count">--</div>
+        <div class="meta" id="positions-count-meta">--</div>
+      </section>
+      <section class="card">
+        <div class="label" data-i18n="market_fetch"></div>
+        <div class="value" id="market-fetch">--</div>
+        <div class="meta" id="market-fetch-meta">--</div>
+      </section>
+      <section class="card">
+        <div class="label" data-i18n="signals"></div>
+        <div class="value" id="signal-status">--</div>
+        <div class="meta" id="signal-meta">--</div>
+      </section>
+      <section class="card">
+        <div class="label" data-i18n="health"></div>
+        <div class="value" id="health-status">--</div>
+        <div class="meta" id="health-meta">--</div>
+      </section>
+      <section class="card">
+        <div class="label" data-i18n="execution"></div>
+        <div class="value" id="execution-status">--</div>
+        <div class="meta" id="execution-meta">--</div>
+      </section>
+      <section class="card">
+        <div class="label" data-i18n="risk_gates"></div>
+        <div class="value" id="risk-gate-status">--</div>
+        <div class="meta" id="risk-gate-meta">--</div>
+      </section>
+      <section class="card">
+        <div class="label" data-i18n="validation"></div>
+        <div class="value" id="validation-status">--</div>
+        <div class="meta" id="validation-meta">--</div>
+      </section>
+      <section class="card">
+        <div class="label" data-i18n="ds_decision"></div>
+        <div class="value" id="ds-status">--</div>
+        <div class="meta" id="ds-meta">--</div>
+      </section>
+    </section>
+
+    <section class="dashboard-layout">
+      <div class="stack rail-left">
+        <section class="panel">
+          <div class="panel-head">
+            <h2 data-i18n="market_monitor"></h2>
+            <div class="meta" id="signals-meta">--</div>
+          </div>
+          <div class="split-panel">
+            <section class="subpanel">
+              <div class="subpanel-head">
+                <span data-i18n="latest_signals"></span>
+              </div>
+              <ul id="signals-list">
+                <li class="empty" data-i18n="loading"></li>
+              </ul>
+            </section>
+            <section class="subpanel">
+              <div class="subpanel-head">
+                <span data-i18n="universe_status"></span>
+                <span class="meta" id="universe-meta">--</span>
+              </div>
+              <ul id="universe-list">
+                <li class="empty" data-i18n="loading"></li>
+              </ul>
+            </section>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2 data-i18n="latest_notifications"></h2>
+            <div class="meta" id="notifications-meta">--</div>
+          </div>
+          <ul id="notifications-list">
+            <li class="empty" data-i18n="loading"></li>
+          </ul>
+        </section>
+      </div>
+
+      <div class="stack stage-center">
+        <section class="panel workspace-panel">
+          <div class="panel-head panel-head-tight">
+            <div>
+              <h2 data-i18n="strategy_workspace"></h2>
+              <div class="meta" id="strategy-workspace-meta">--</div>
+            </div>
+            <div class="meta" id="workspace-note">--</div>
+          </div>
+          <div class="strategy-tabs" id="strategy-tabs"></div>
+
+          <section id="overview-view" class="workspace-view">
+            <div class="summary-strip" id="overview-strategy-cards"></div>
+            <div class="workspace-grid overview-grid">
+              <section class="workspace-card workspace-card-wide">
+                <div class="panel-head">
+                  <h3 data-i18n="nav_curve"></h3>
+                  <div class="meta" id="nav-chart-meta">--</div>
+                </div>
+                <canvas id="nav-chart" class="chart-lg" width="860" height="260"></canvas>
+              </section>
+
+              <section class="workspace-card">
+                <div class="panel-head">
+                  <h3 data-i18n="strategy_compare"></h3>
+                  <div class="meta" id="strategy-compare-meta">--</div>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th data-i18n="strategy_label"></th>
+                      <th data-i18n="return_pct"></th>
+                      <th data-i18n="max_drawdown"></th>
+                      <th data-i18n="win_rate"></th>
+                      <th data-i18n="profit_factor"></th>
+                      <th data-i18n="turnover"></th>
+                      <th data-i18n="risk_triggers"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="strategy-compare-body">
+                    <tr><td colspan="7" class="empty" data-i18n="loading"></td></tr>
+                  </tbody>
+                </table>
+              </section>
+
+              <section class="workspace-card workspace-card-full">
+                <div class="panel-head">
+                  <h3 data-i18n="open_positions"></h3>
+                  <div class="meta" id="positions-meta">--</div>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th data-i18n="symbol"></th>
+                      <th data-i18n="qty"></th>
+                      <th data-i18n="avg"></th>
+                      <th data-i18n="mark"></th>
+                      <th data-i18n="upnl"></th>
+                      <th data-i18n="stop"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="positions-body">
+                    <tr><td colspan="6" class="empty" data-i18n="loading"></td></tr>
+                  </tbody>
+                </table>
+              </section>
+            </div>
+          </section>
+
+          <section id="strategy-view" class="workspace-view hidden">
+            <div class="workspace-header">
+              <div>
+                <div class="eyebrow small-eyebrow" id="strategy-detail-label">--</div>
+                <h3 class="workspace-title" id="strategy-detail-title">--</h3>
+                <div class="meta" id="strategy-detail-meta">--</div>
+              </div>
+              <div class="meta workspace-note-block" id="strategy-detail-note">--</div>
+            </div>
+
+            <div class="summary-strip" id="strategy-kpis"></div>
+
+            <div class="workspace-grid strategy-grid">
+              <section class="workspace-card workspace-card-wide">
+                <div class="panel-head">
+                  <h3 data-i18n="strategy_nav_curve"></h3>
+                  <div class="meta" id="strategy-chart-meta">--</div>
+                </div>
+                <canvas id="strategy-nav-chart" class="chart-lg" width="860" height="260"></canvas>
+              </section>
+
+              <section class="workspace-card">
+                <div class="panel-head">
+                  <h3 data-i18n="positions_summary"></h3>
+                  <div class="meta" id="strategy-positions-summary-meta">--</div>
+                </div>
+                <ul id="strategy-positions-summary-list">
+                  <li class="empty" data-i18n="loading"></li>
+                </ul>
+              </section>
+
+              <section class="workspace-card workspace-card-full">
+                <div class="panel-head">
+                  <h3 data-i18n="open_positions"></h3>
+                  <div class="meta" id="strategy-positions-meta">--</div>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th data-i18n="symbol"></th>
+                      <th data-i18n="qty"></th>
+                      <th data-i18n="avg"></th>
+                      <th data-i18n="mark"></th>
+                      <th data-i18n="upnl"></th>
+                      <th data-i18n="stop"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="strategy-positions-body">
+                    <tr><td colspan="6" class="empty" data-i18n="loading"></td></tr>
+                  </tbody>
+                </table>
+              </section>
+
+              <section class="workspace-card">
+                <div class="panel-head">
+                  <h3 data-i18n="recent_trades"></h3>
+                  <div class="meta" id="strategy-trades-meta">--</div>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th data-i18n="symbol"></th>
+                      <th data-i18n="side"></th>
+                      <th data-i18n="notional"></th>
+                      <th data-i18n="realized_pnl_short"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="strategy-trades-body">
+                    <tr><td colspan="4" class="empty" data-i18n="loading"></td></tr>
+                  </tbody>
+                </table>
+              </section>
+
+              <section class="workspace-card">
+                <div class="panel-head">
+                  <h3 data-i18n="recent_events"></h3>
+                  <div class="meta" id="strategy-events-meta">--</div>
+                </div>
+                <ul id="strategy-events-list">
+                  <li class="empty" data-i18n="loading"></li>
+                </ul>
+              </section>
+            </div>
+          </section>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2 data-i18n="price_trends"></h2>
+            <div class="meta" id="price-trends-meta">--</div>
+          </div>
+          <div id="price-trends-grid" class="mini-grid">
+            <div class="empty" data-i18n="loading"></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="stack rail-right">
+        <section class="panel">
+          <div class="panel-head">
+            <h2 data-i18n="latest_execution"></h2>
+            <div class="meta" id="execution-panel-meta">--</div>
+          </div>
+          <ul id="execution-list">
+            <li class="empty" data-i18n="loading"></li>
+          </ul>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2 data-i18n="risk_gates"></h2>
+            <div class="meta" id="risk-panel-meta">--</div>
+          </div>
+          <ul id="risk-list">
+            <li class="empty" data-i18n="loading"></li>
+          </ul>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2 data-i18n="latest_validation"></h2>
+            <div class="meta" id="validation-panel-meta">--</div>
+          </div>
+          <ul id="validation-list">
+            <li class="empty" data-i18n="loading"></li>
+          </ul>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2 data-i18n="ds_operator"></h2>
+            <div class="meta" id="ds-panel-meta">--</div>
+          </div>
+          <div class="subpanel">
+            <div class="subpanel-head">
+              <span data-i18n="latest_ds_suggestions"></span>
+            </div>
+            <ul id="ds-list">
+              <li class="empty" data-i18n="loading"></li>
+            </ul>
+          </div>
+          <div class="subpanel top-divider">
+            <div class="subpanel-head">
+              <span data-i18n="latest_ds_rejection"></span>
+              <span class="meta" id="ds-rejection-meta">--</span>
+            </div>
+            <ul id="ds-rejection-list">
+              <li class="empty" data-i18n="loading"></li>
+            </ul>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    window.__SIM_DASHBOARD_CONFIG__ = { notificationLimit: __NOTIFICATION_LIMIT__ };
+__DASHBOARD_JS__
+  </script>
+</body>
+</html>
