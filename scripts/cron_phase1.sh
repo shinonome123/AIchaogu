@@ -10,6 +10,8 @@ MARKET_SOURCE="${MARKET_SOURCE:-binance}"
 MARKET_API_ROOT="${MARKET_API_ROOT:-https://api.binance.com}"
 UNIVERSE_API_ROOT="${UNIVERSE_API_ROOT:-https://api.binance.com}"
 RUN_UNIVERSE_REFRESH="${RUN_UNIVERSE_REFRESH:-1}"
+RUN_FETCH_MARKET="${RUN_FETCH_MARKET:-1}"
+FETCH_MARKET_EVERY_SECONDS="${FETCH_MARKET_EVERY_SECONDS:-60}"
 UNIVERSE_REFRESH_EVERY_MINUTES="${UNIVERSE_REFRESH_EVERY_MINUTES:-15}"
 RUN_BASELINE_STRATEGY="${RUN_BASELINE_STRATEGY:-1}"
 RUN_DS_CONSERVATIVE_STRATEGY="${RUN_DS_CONSERVATIVE_STRATEGY:-1}"
@@ -72,6 +74,31 @@ should_run_interval() {
   return 1
 }
 
+should_run_interval_seconds() {
+  local key="$1"
+  local interval_seconds="$2"
+  local now last file
+  file="$RUN_MARKER_DIR/tick-${key}.ts"
+
+  if (( interval_seconds < 1 )); then
+    interval_seconds=1
+  fi
+
+  mkdir -p "$RUN_MARKER_DIR"
+  now="$(date +%s)"
+  if [[ ! -f "$file" ]]; then
+    return 0
+  fi
+
+  last="$(cat "$file" 2>/dev/null || echo 0)"
+  [[ "$last" =~ ^[0-9]+$ ]] || last=0
+
+  if (( now - last >= interval_seconds )); then
+    return 0
+  fi
+  return 1
+}
+
 mark_interval_run() {
   local key="$1"
   mkdir -p "$RUN_MARKER_DIR"
@@ -84,6 +111,25 @@ run_strategy_track() {
     --strategy "$strategy" \
     --lookback-points "$STRATEGY_LOOKBACK_POINTS" \
     --source "cron.strategy.$strategy"
+}
+
+run_fetch_market() {
+  local -a symbol_args=()
+  while IFS= read -r item; do
+    [[ -n "$item" ]] || continue
+    symbol_args+=("$item")
+  done < <(build_symbol_args)
+
+  if ((${#symbol_args[@]})); then
+    "$PYTHON_BIN" -m sim_trading --state-dir "$STATE_DIR" fetch-market \
+      --source "$MARKET_SOURCE" \
+      --api-root "$MARKET_API_ROOT" \
+      "${symbol_args[@]}"
+  else
+    "$PYTHON_BIN" -m sim_trading --state-dir "$STATE_DIR" fetch-market \
+      --source "$MARKET_SOURCE" \
+      --api-root "$MARKET_API_ROOT"
+  fi
 }
 
 run_hourly() {
@@ -176,6 +222,9 @@ run_hourly() {
 }
 
 run_tick() {
+  if (( FETCH_MARKET_EVERY_SECONDS < 1 )); then
+    FETCH_MARKET_EVERY_SECONDS=60
+  fi
   if (( UNIVERSE_REFRESH_EVERY_MINUTES < 1 )); then
     UNIVERSE_REFRESH_EVERY_MINUTES=15
   fi
@@ -194,6 +243,11 @@ run_tick() {
       --api-root "$UNIVERSE_API_ROOT" \
       --source binance
     mark_interval_run universe
+  fi
+
+  if [[ "$RUN_FETCH_MARKET" != "0" ]] && should_run_interval_seconds market "$FETCH_MARKET_EVERY_SECONDS"; then
+    run_fetch_market
+    mark_interval_run market
   fi
 
   if [[ "$RUN_BASELINE_STRATEGY" != "0" ]] && should_run_interval strategy-baseline "$BASELINE_STRATEGY_EVERY_MINUTES"; then

@@ -76,11 +76,22 @@ python3 -m sim_trading --state-dir demo/state universe-refresh \
 
 Ranking rule for the shortlist:
 
-- sort descending by `quoteVolume`
-- tie-break descending by `tradeCount`
+- sort descending by composite `rank_score` (volume + trade_count + spread quality + listing_age)
+- then descending by `quoteVolume`
+- then descending by `tradeCount`
 - then ascending by quoted spread
 - then descending by listing age
 - then symbol
+
+You can tune universe filters from CLI, for example:
+
+```bash
+python3 -m sim_trading --state-dir demo/state universe-refresh \
+  --min-listing-age-days 45 \
+  --min-quote-volume 10000000 \
+  --min-trade-count 5000 \
+  --max-spread-pct 0.006
+```
 
 Run the isolated strategy tracks:
 
@@ -91,6 +102,15 @@ python3 -m sim_trading --state-dir demo/state strategy-run --strategy ds_aggress
 
 python3 -m sim_trading --state-dir demo/state strategy-compare --output-json
 ```
+
+Available rule-based strategy engines for signal snapshots:
+
+- `equal_weight_momentum` (default)
+- `mean_reversion`
+- `breakout_momentum`
+- `tiered_momentum` (rank-decay allocation for trend leaders)
+
+Set strategy engine in `state/config.json` under `strategy.name`.
 
 Defaults for the triple-strategy framework:
 
@@ -293,10 +313,11 @@ The hourly helper now runs:
 The new `tick` flow keeps the existing 3-hour report cadence and adds:
 
 1. `universe-refresh` every 15 minutes
-2. `strategy-run --strategy baseline` every 30 minutes
-3. `strategy-run --strategy ds_conservative` every 30 minutes
-4. `strategy-run --strategy ds_aggressive` every 30 minutes
-5. `emit-status-report` every 3 hours
+2. `fetch-market` every 60 seconds (configurable)
+3. `strategy-run --strategy baseline` every 30 minutes
+4. `strategy-run --strategy ds_conservative` every 30 minutes
+5. `strategy-run --strategy ds_aggressive` every 30 minutes
+6. `emit-status-report` every 3 hours
 
 Useful overrides:
 
@@ -306,6 +327,8 @@ Useful overrides:
 - `UNIVERSE_API_ROOT=https://api.binance.com`
 - `RUN_UNIVERSE_REFRESH=1`
 - `UNIVERSE_REFRESH_EVERY_MINUTES=15`
+- `RUN_FETCH_MARKET=1`
+- `FETCH_MARKET_EVERY_SECONDS=60`
 - `RUN_BASELINE_STRATEGY=1`
 - `RUN_DS_CONSERVATIVE_STRATEGY=1`
 - `RUN_DS_AGGRESSIVE_STRATEGY=1`

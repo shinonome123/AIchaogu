@@ -102,11 +102,19 @@ Filtering rules:
 
 Ranking rule:
 
+- `rank_score` descending (volume + trade count + spread quality + listing age)
 - `quoteVolume` descending
 - `tradeCount` descending
 - spread ascending
 - listing age descending
 - symbol ascending
+
+Universe filter knobs are exposed on CLI (`universe-refresh`):
+
+- `--min-listing-age-days`
+- `--min-quote-volume`
+- `--min-trade-count`
+- `--max-spread-pct`
 
 Artifacts written under state:
 
@@ -130,6 +138,13 @@ python3 -m sim_trading --state-dir demo/state execute-sim --decision-source stra
 ```
 
 Strategy state directories live under `state/strategies/<name>/`.
+
+Signal snapshots (`run-signals`) support these `strategy.name` engines in `state/config.json`:
+
+- `equal_weight_momentum`
+- `mean_reversion`
+- `breakout_momentum`
+- `tiered_momentum`
 
 Risk defaults for all three tracks:
 
@@ -173,16 +188,19 @@ New 15-minute strategy-framework tick:
 `tick` does:
 
 1. `universe-refresh` every 15 minutes
-2. `strategy-run --strategy baseline` every 30 minutes
-3. `strategy-run --strategy ds_conservative` every 30 minutes
-4. `strategy-run --strategy ds_aggressive` every 30 minutes
-5. `emit-status-report` every 3 hours
+2. `fetch-market` every 60 seconds (configurable)
+3. `strategy-run --strategy baseline` every 30 minutes
+4. `strategy-run --strategy ds_conservative` every 30 minutes
+5. `strategy-run --strategy ds_aggressive` every 30 minutes
+6. `emit-status-report` every 3 hours
 
 Useful env overrides:
 
 - `RUN_UNIVERSE_REFRESH=1`
 - `UNIVERSE_REFRESH_EVERY_MINUTES=15`
 - `UNIVERSE_API_ROOT=https://api.binance.com`
+- `RUN_FETCH_MARKET=1`
+- `FETCH_MARKET_EVERY_SECONDS=60`
 - `RUN_BASELINE_STRATEGY=1`
 - `RUN_DS_CONSERVATIVE_STRATEGY=1`
 - `RUN_DS_AGGRESSIVE_STRATEGY=1`

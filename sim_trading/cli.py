@@ -497,6 +497,10 @@ def cmd_universe_refresh(args: argparse.Namespace) -> int:
         timeout_seconds=args.timeout_seconds,
         top_limit=args.top_limit,
         ds_limit=args.ds_limit,
+        min_listing_age_days=args.min_listing_age_days,
+        min_quote_volume=to_decimal(args.min_quote_volume),
+        min_trade_count=args.min_trade_count,
+        max_spread_pct=to_decimal(args.max_spread_pct),
     )
     entry = result.entry
     print(
@@ -1098,6 +1102,10 @@ def build_parser() -> argparse.ArgumentParser:
     universe_parser.add_argument("--timeout-seconds", type=int, default=20)
     universe_parser.add_argument("--top-limit", type=int, default=120)
     universe_parser.add_argument("--ds-limit", type=int, default=30)
+    universe_parser.add_argument("--min-listing-age-days", type=int, default=30)
+    universe_parser.add_argument("--min-quote-volume", default="5000000")
+    universe_parser.add_argument("--min-trade-count", type=int, default=2000)
+    universe_parser.add_argument("--max-spread-pct", default="0.01")
     universe_parser.add_argument("--timestamp")
     universe_parser.set_defaults(func=cmd_universe_refresh)
 

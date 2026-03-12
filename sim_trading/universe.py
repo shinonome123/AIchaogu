@@ -41,8 +41,8 @@ STABLE_BASE_ASSETS = {
     "EURS",
 }
 UNIVERSE_RANKING_RULE = (
-    "Sort descending by 24h quote volume, descending by trade count, ascending by quoted spread, "
-    "descending by listing age, then symbol."
+    "Sort descending by composite liquidity-quality score (quote volume, trade count, spread quality, listing age), "
+    "then descending by quote volume, descending by trade count, ascending by spread, descending by listing age, then symbol."
 )
 
 
@@ -166,9 +166,40 @@ def _item_payload(item: dict[str, Any]) -> dict[str, Any]:
         "leveraged_token": item["leveraged_token"],
         "stable_stable": item["stable_stable"],
         "passed_filters": item["passed_filters"],
+        "rank_score": decimal_to_str(item.get("rank_score", Decimal("0"))),
         "excluded_reasons": list(item["excluded_reasons"]),
         "rank": item.get("rank"),
     }
+
+
+def _universe_rank_score(
+    item: dict[str, Any],
+    *,
+    min_listing_age_days: int,
+    min_quote_volume: Decimal,
+    min_trade_count: int,
+    max_spread_pct: Decimal,
+) -> Decimal:
+    volume = to_decimal(item.get("quote_volume_24h", "0"))
+    trades = Decimal(int(item.get("trade_count", 0) or 0))
+    spread = item.get("spread_pct")
+    age = Decimal(int(item.get("listing_age_days", 0) or 0))
+
+    volume_score = min(Decimal("1"), volume / max(min_quote_volume * Decimal("5"), Decimal("1")))
+    trade_score = min(Decimal("1"), trades / max(Decimal(min_trade_count) * Decimal("5"), Decimal("1")))
+    if spread is None:
+        spread_score = Decimal("0")
+    else:
+        spread_score = max(Decimal("0"), Decimal("1") - (to_decimal(spread) / max(max_spread_pct, Decimal("0.0001"))))
+    age_score = min(Decimal("1"), age / max(Decimal(min_listing_age_days * 8), Decimal("1")))
+
+    score = (
+        (volume_score * Decimal("0.40"))
+        + (trade_score * Decimal("0.25"))
+        + (spread_score * Decimal("0.20"))
+        + (age_score * Decimal("0.15"))
+    )
+    return quantize_8(score)
 
 
 def refresh_universe(
@@ -302,8 +333,18 @@ def refresh_universe(
         if item["passed_filters"]:
             filtered_items.append(dict(item))
 
+    for item in filtered_items:
+        item["rank_score"] = _universe_rank_score(
+            item,
+            min_listing_age_days=min_listing_age_days,
+            min_quote_volume=min_quote_volume,
+            min_trade_count=min_trade_count,
+            max_spread_pct=max_spread_pct,
+        )
+
     filtered_items.sort(
         key=lambda item: (
+            -to_decimal(item.get("rank_score", "0")),
             -item["quote_volume_24h"],
             -int(item["trade_count"]),
             item["spread_pct"] if item["spread_pct"] is not None else Decimal("999"),

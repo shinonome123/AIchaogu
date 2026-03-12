@@ -12,7 +12,13 @@ from urllib.request import Request, urlopen
 from sim_trading.ledger import LedgerService
 from sim_trading.models import decimal_to_str, normalize_symbol, now_iso, quantize_8, to_decimal
 from sim_trading.storage import StoragePaths, append_jsonl, read_json, read_jsonl, read_last_jsonl
-from sim_trading.strategy import EqualWeightMomentumStrategy, MarketSignal
+from sim_trading.strategy import (
+    BreakoutMomentumStrategy,
+    EqualWeightMomentumStrategy,
+    MarketSignal,
+    MeanReversionStrategy,
+    TieredMomentumStrategy,
+)
 
 DEFAULT_MARKET_SOURCE = "binance"
 DEFAULT_MARKET_API_ROOT = "https://api.binance.com"
@@ -114,28 +120,47 @@ def fetch_market_snapshot(
 
     fetch_time = timestamp or now_iso()
     prices: dict[str, dict[str, str]] = {}
-    for symbol in resolved_symbols:
-        exchange_symbol = _binance_pair(symbol)
-        request = Request(
-            f"{api_root.rstrip('/')}/api/v3/ticker/price?symbol={quote(exchange_symbol)}",
-            headers={"User-Agent": "sim-trading/0.1"},
-        )
-        try:
-            with urlopen(request, timeout=timeout_seconds) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-        except HTTPError as exc:
-            raise RuntimeError(f"market fetch failed for {symbol}: HTTP {exc.code}") from exc
-        except URLError as exc:
-            raise RuntimeError(f"market fetch failed for {symbol}: {exc.reason}") from exc
+    exchange_symbols = [_binance_pair(symbol) for symbol in resolved_symbols]
+    bulk_url = (
+        f"{api_root.rstrip('/')}/api/v3/ticker/price?symbols="
+        + quote(json.dumps(exchange_symbols, separators=(",", ":")))
+    )
+    request = Request(bulk_url, headers={"User-Agent": "sim-trading/0.1"})
+    try:
+        with urlopen(request, timeout=timeout_seconds) as response:
+            bulk_payload = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        bulk_payload = None
 
-        if not isinstance(payload, dict) or "price" not in payload:
-            raise RuntimeError(f"market fetch failed for {symbol}: unexpected payload")
+    prices_by_exchange: dict[str, Decimal] = {}
+    if isinstance(bulk_payload, list):
+        for row in bulk_payload:
+            if not isinstance(row, dict) or "symbol" not in row or "price" not in row:
+                continue
+            prices_by_exchange[str(row["symbol"]).upper()] = quantize_8(to_decimal(row["price"]))
 
-        price = quantize_8(to_decimal(payload["price"]))
+    for symbol, exchange_symbol in zip(resolved_symbols, exchange_symbols):
+        price_value = prices_by_exchange.get(exchange_symbol)
+        if price_value is None:
+            single_request = Request(
+                f"{api_root.rstrip('/')}/api/v3/ticker/price?symbol={quote(exchange_symbol)}",
+                headers={"User-Agent": "sim-trading/0.1"},
+            )
+            try:
+                with urlopen(single_request, timeout=timeout_seconds) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+            except HTTPError as exc:
+                raise RuntimeError(f"market fetch failed for {symbol}: HTTP {exc.code}") from exc
+            except URLError as exc:
+                raise RuntimeError(f"market fetch failed for {symbol}: {exc.reason}") from exc
+            if not isinstance(payload, dict) or "price" not in payload:
+                raise RuntimeError(f"market fetch failed for {symbol}: unexpected payload")
+            price_value = quantize_8(to_decimal(payload["price"]))
+
         prices[symbol] = {
             "symbol": symbol,
-            "exchange_symbol": str(payload.get("symbol", exchange_symbol)),
-            "price": decimal_to_str(price),
+            "exchange_symbol": exchange_symbol,
+            "price": decimal_to_str(price_value),
             "timestamp": fetch_time,
             "source": normalized_source,
         }
@@ -185,13 +210,24 @@ def _signal_label(momentum: Decimal, ema_slope: Decimal, observations: int) -> s
     return "flat"
 
 
-def _strategy_from_config(config_payload: dict[str, object]) -> EqualWeightMomentumStrategy:
+def _strategy_from_config(config_payload: dict[str, object]):
     strategy_payload = config_payload.get("strategy", {}) if isinstance(config_payload, dict) else {}
     strategy_name = str(strategy_payload.get("name", "equal_weight_momentum"))
-    if strategy_name != "equal_weight_momentum":
-        raise ValueError(f"unsupported strategy '{strategy_name}'")
-    min_momentum = to_decimal(strategy_payload.get("min_momentum", "0"))
-    return EqualWeightMomentumStrategy(min_momentum=min_momentum)
+    if strategy_name == "equal_weight_momentum":
+        min_momentum = to_decimal(strategy_payload.get("min_momentum", "0"))
+        return EqualWeightMomentumStrategy(min_momentum=min_momentum)
+    if strategy_name == "mean_reversion":
+        min_drawdown_momentum = to_decimal(strategy_payload.get("min_drawdown_momentum", "-0.08"))
+        return MeanReversionStrategy(min_drawdown_momentum=min_drawdown_momentum)
+    if strategy_name == "breakout_momentum":
+        min_momentum = to_decimal(strategy_payload.get("min_momentum", "0.02"))
+        max_positions = int(strategy_payload.get("max_positions", 5))
+        return BreakoutMomentumStrategy(min_momentum=min_momentum, max_positions=max_positions)
+    if strategy_name == "tiered_momentum":
+        min_momentum = to_decimal(strategy_payload.get("min_momentum", "0.01"))
+        max_positions = int(strategy_payload.get("max_positions", 5))
+        return TieredMomentumStrategy(min_momentum=min_momentum, max_positions=max_positions)
+    raise ValueError(f"unsupported strategy '{strategy_name}'")
 
 
 def _configured_signal_symbols(config_payload: dict[str, object]) -> set[str] | None:
