@@ -11,6 +11,7 @@ from sim_trading.ds_operator import (
     load_latest_ds_rejection,
     summarize_ds_approval,
 )
+from sim_trading.experiments import load_experiment_runs, load_latest_experiment_run
 from sim_trading.execution import build_risk_status, load_latest_execution_run, load_latest_risk_event
 from sim_trading.ledger import LedgerService
 from sim_trading.market import load_latest_market_fetch, load_latest_signal_run
@@ -18,6 +19,7 @@ from sim_trading.models import decimal_to_str, now_iso, to_decimal
 from sim_trading.notifier import load_report_entries
 from sim_trading.storage import read_csv_rows, read_jsonl
 from sim_trading.strategy_tracks import STRATEGY_PROFILES, build_strategy_comparison, resolve_strategy_profile, strategy_state_dir
+from sim_trading.strategy_tracks import load_strategy_selection
 from sim_trading.universe import build_universe_status
 from sim_trading.validation import load_latest_validation_run
 
@@ -118,6 +120,8 @@ def _build_context_snapshot(
     latest_ds_decision = load_latest_ds_decision(state_dir)
     latest_ds_rejection = load_latest_ds_rejection(state_dir)
     latest_ds_approval = load_latest_ds_approval(state_dir)
+    latest_experiment_run = load_latest_experiment_run(state_dir)
+    strategy_selection = load_strategy_selection(state_dir)
     risk_status = build_risk_status(
         state_dir,
         snapshot={"timestamp": snapshot.timestamp, "nav": decimal_to_str(snapshot.nav)},
@@ -163,6 +167,8 @@ def _build_context_snapshot(
         "risk_status": risk_status,
         "last_risk_event": latest_risk_event,
         "last_circuit_breaker_event": risk_status.get("last_circuit_breaker_event"),
+        "latest_experiment_run": latest_experiment_run,
+        "strategy_selection": strategy_selection,
         "timeseries": {
             "equity_curve": _equity_curve_timeseries(service),
             "market_prices": _market_price_timeseries(service, symbols=held_symbols),
@@ -569,6 +575,8 @@ def build_dashboard_status_payload(
         "latest_signal_run": snapshot.get("latest_signal_run"),
         "latest_execution_run": snapshot.get("latest_execution_run"),
         "latest_validation_run": snapshot.get("latest_validation_run"),
+        "latest_experiment_run": snapshot.get("latest_experiment_run"),
+        "experiment_history": load_experiment_runs(state_dir, limit=12),
         "latest_ds_decision": snapshot.get("latest_ds_decision"),
         "latest_ds_decision_summary": snapshot.get("latest_ds_decision_summary"),
         "latest_ds_rejection": snapshot.get("latest_ds_rejection"),

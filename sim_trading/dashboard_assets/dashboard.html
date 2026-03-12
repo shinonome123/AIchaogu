@@ -130,6 +130,16 @@ __DASHBOARD_CSS__
             <li class="empty" data-i18n="loading"></li>
           </ul>
         </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2 data-i18n="experiment_runs"></h2>
+            <div class="meta" id="experiment-meta">--</div>
+          </div>
+          <ul id="experiment-list">
+            <li class="empty" data-i18n="loading"></li>
+          </ul>
+        </section>
       </div>
 
       <div class="stack stage-center">
@@ -169,10 +179,11 @@ __DASHBOARD_CSS__
                       <th data-i18n="profit_factor"></th>
                       <th data-i18n="turnover"></th>
                       <th data-i18n="risk_triggers"></th>
+                      <th data-i18n="recommended_weight"></th>
                     </tr>
                   </thead>
                   <tbody id="strategy-compare-body">
-                    <tr><td colspan="7" class="empty" data-i18n="loading"></td></tr>
+                    <tr><td colspan="8" class="empty" data-i18n="loading"></td></tr>
                   </tbody>
                 </table>
               </section>
@@ -300,6 +311,23 @@ __DASHBOARD_CSS__
 
       <div class="stack rail-right">
         <section class="panel">
+          <div class="panel-head panel-head-tight">
+            <h2 data-i18n="ops_tabs"></h2>
+          </div>
+          <div class="panel-tabs" id="ops-tabs"></div>
+        </section>
+
+        <section class="panel ops-panel" id="ops-panel-control">
+          <div class="panel-head">
+            <h2 data-i18n="strategy_control"></h2>
+            <div class="meta" id="strategy-control-meta">--</div>
+          </div>
+          <ul id="strategy-control-list">
+            <li class="empty" data-i18n="loading"></li>
+          </ul>
+        </section>
+
+        <section class="panel ops-panel" id="ops-panel-execution">
           <div class="panel-head">
             <h2 data-i18n="latest_execution"></h2>
             <div class="meta" id="execution-panel-meta">--</div>
@@ -309,7 +337,7 @@ __DASHBOARD_CSS__
           </ul>
         </section>
 
-        <section class="panel">
+        <section class="panel ops-panel" id="ops-panel-risk">
           <div class="panel-head">
             <h2 data-i18n="risk_gates"></h2>
             <div class="meta" id="risk-panel-meta">--</div>
@@ -319,7 +347,7 @@ __DASHBOARD_CSS__
           </ul>
         </section>
 
-        <section class="panel">
+        <section class="panel ops-panel" id="ops-panel-validation">
           <div class="panel-head">
             <h2 data-i18n="latest_validation"></h2>
             <div class="meta" id="validation-panel-meta">--</div>
@@ -329,7 +357,7 @@ __DASHBOARD_CSS__
           </ul>
         </section>
 
-        <section class="panel">
+        <section class="panel ops-panel" id="ops-panel-ds">
           <div class="panel-head">
             <h2 data-i18n="ds_operator"></h2>
             <div class="meta" id="ds-panel-meta">--</div>

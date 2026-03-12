@@ -2,53 +2,11 @@
   "account": {
     "account_id": "sim-default",
     "base_currency": "USDT",
-    "cash_balance": "0.01",
+    "cash_balance": "100",
     "created_at": "2026-02-26T22:50:00+08:00",
-    "metadata": {
-      "seed_migration_mode": "synthetic_single_unit_positions"
-    }
+    "metadata": {}
   },
-  "positions": [
-    {
-      "average_entry_price": "33.33",
-      "last_price": "33.33",
-      "metadata": {
-        "seed_basis": "synthetic_single_unit_from_notional",
-        "thesis": "EMA uptrend"
-      },
-      "opened_at": "2026-02-26T22:50:00+08:00",
-      "quantity": "1",
-      "stop_loss": "31.66",
-      "symbol": "BTC/USDT",
-      "updated_at": "2026-02-26T22:50:00+08:00"
-    },
-    {
-      "average_entry_price": "33.33",
-      "last_price": "33.33",
-      "metadata": {
-        "seed_basis": "synthetic_single_unit_from_notional",
-        "thesis": "7d momentum +24%"
-      },
-      "opened_at": "2026-02-26T22:50:00+08:00",
-      "quantity": "1",
-      "stop_loss": "31.66",
-      "symbol": "DOT/USDT",
-      "updated_at": "2026-02-26T22:50:00+08:00"
-    },
-    {
-      "average_entry_price": "33.33",
-      "last_price": "33.33",
-      "metadata": {
-        "seed_basis": "synthetic_single_unit_from_notional",
-        "thesis": "Uptrend"
-      },
-      "opened_at": "2026-02-26T22:50:00+08:00",
-      "quantity": "1",
-      "stop_loss": "31.66",
-      "symbol": "LINK/USDT",
-      "updated_at": "2026-02-26T22:50:00+08:00"
-    }
-  ],
+  "positions": [],
   "risk": {
     "consecutive_loss_limit": 3,
     "default_stop_loss_pct": "0.05",
@@ -75,15 +33,11 @@
     "step_points": 1
   },
   "seed_version": 1,
-  "source_note": "Migrated from context/sim-trading.md. The markdown only provided total capital and per-symbol notionals, not executable fills. To keep the seed machine-readable and runnable, each 33.33 USDT allocation was normalized into a synthetic 1.0 unit position with a 33.33 average entry and a default 5% stop-loss.",
+  "source_note": "Default neutral seed with no preloaded holdings and no hard-coded symbols. Configure symbols dynamically via fetch-market --symbol, universe-refresh, or strategy-selection workflows.",
   "source_path": "context/sim-trading.md",
   "strategy": {
     "name": "equal_weight_momentum",
-    "notes": "Example strategy included in the package; seed uses manual migrated holdings.",
-    "symbols": [
-      "BTC/USDT",
-      "DOT/USDT",
-      "LINK/USDT"
-    ]
+    "notes": "Example strategy included in the package; seed starts symbol-neutral by default.",
+    "symbols": []
   }
 }

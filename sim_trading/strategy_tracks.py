@@ -70,6 +70,101 @@ def strategy_state_dir(state_dir: Path | str, strategy: str) -> Path:
     return root / resolve_strategy_profile(strategy).name
 
 
+def load_strategy_selection(state_dir: Path | str) -> dict[str, Any]:
+    service = LedgerService(state_dir)
+    config = service.load_config_payload()
+    strategy_control = config.get("strategy_control", {}) if isinstance(config, dict) else {}
+    if not isinstance(strategy_control, dict):
+        strategy_control = {}
+    selected = str(strategy_control.get("selected_strategy", "")).strip().lower()
+    enabled = bool(strategy_control.get("enabled", False)) and bool(selected)
+    if selected and selected in STRATEGY_PROFILES:
+        label = selected
+    else:
+        selected = ""
+        enabled = False
+        label = None
+    return {
+        "enabled": enabled,
+        "selected_strategy": selected or None,
+        "label": label,
+    }
+
+
+def set_strategy_selection(state_dir: Path | str, *, strategy: str | None, enabled: bool) -> dict[str, Any]:
+    service = LedgerService(state_dir)
+    config = service.load_config_payload()
+    if not isinstance(config, dict):
+        config = {}
+    strategy_control = config.get("strategy_control", {})
+    if not isinstance(strategy_control, dict):
+        strategy_control = {}
+    if strategy:
+        profile = resolve_strategy_profile(strategy)
+        strategy_control["selected_strategy"] = profile.name
+    else:
+        strategy_control["selected_strategy"] = ""
+    strategy_control["enabled"] = bool(enabled and strategy_control.get("selected_strategy"))
+    strategy_control["updated_at"] = now_iso()
+    config["strategy_control"] = strategy_control
+    service.save_config_payload(config)
+    return load_strategy_selection(state_dir)
+
+
+def build_strategy_signal_entry(
+    state_dir: Path | str,
+    *,
+    strategy: str,
+    timestamp: str | None = None,
+    lookback_points: int = DEFAULT_STRATEGY_LOOKBACK_POINTS,
+    source: str = "strategy.selection",
+) -> dict[str, Any]:
+    profile = resolve_strategy_profile(strategy)
+    run_time = timestamp or now_iso()
+    try:
+        symbols = resolve_universe_symbols(state_dir, profile.universe_artifact)
+    except Exception:  # noqa: BLE001
+        root_config = LedgerService(state_dir).load_config_payload()
+        strategy_payload = root_config.get("strategy", {}) if isinstance(root_config, dict) else {}
+        configured_symbols = strategy_payload.get("symbols", []) if isinstance(strategy_payload, dict) else []
+        symbols = [str(item) for item in configured_symbols if str(item).strip()]
+        if not symbols:
+            raise
+    ensure_strategy_state(state_dir, strategy=profile.name, timestamp=run_time, symbols=symbols)
+    strategy_dir = sync_shared_market_data(state_dir, strategy=profile.name)
+    signal_entry = run_signal_snapshot(
+        state_dir=strategy_dir,
+        source=f"{source}.{profile.name}.signals",
+        lookback_points=lookback_points,
+        timestamp=run_time,
+    ).entry
+    if not profile.uses_ds:
+        signal_entry["decision_source"] = profile.name
+        signal_entry["summary"] = f"[{profile.name}] {signal_entry.get('summary', '')}".strip()
+        return signal_entry
+
+    ds_result = run_deepseek_shadow(
+        state_dir=strategy_dir,
+        source=f"{source}.{profile.name}.ds",
+        timestamp=run_time,
+        plan_bias=profile.ds_bias or "cautious",
+    )
+    if ds_result.decision_entry is None:
+        signal_entry["decision_source"] = profile.name
+        signal_entry["summary"] = f"[{profile.name}] DS unavailable, fallback signals: {signal_entry.get('summary', '')}".strip()
+        return signal_entry
+
+    ds_signal_entry = build_signal_entry_from_ds_decision(
+        state_dir=strategy_dir,
+        decision_entry=ds_result.decision_entry,
+        source=f"{source}.{profile.name}.decision",
+        timestamp=run_time,
+    )
+    ds_signal_entry["decision_source"] = profile.name
+    ds_signal_entry["summary"] = f"[{profile.name}] {ds_signal_entry.get('summary', '')}".strip()
+    return ds_signal_entry
+
+
 def _shared_execution_config(state_dir: Path | str) -> ExecutionConfig:
     try:
         return LedgerService(state_dir).load_execution_config()
@@ -189,50 +284,20 @@ def run_strategy_track(
     profile = resolve_strategy_profile(strategy)
     run_time = timestamp or now_iso()
     symbols = resolve_universe_symbols(state_dir, profile.universe_artifact)
-    ensure_strategy_state(state_dir, strategy=profile.name, timestamp=run_time, symbols=symbols)
-    strategy_dir = sync_shared_market_data(state_dir, strategy=profile.name)
     strategy_service = ensure_strategy_state(state_dir, strategy=profile.name, timestamp=run_time, symbols=symbols)
-
-    signal_entry = run_signal_snapshot(
-        state_dir=strategy_dir,
-        source=f"{source}.{profile.name}.signals",
-        lookback_points=lookback_points,
+    strategy_dir = sync_shared_market_data(state_dir, strategy=profile.name)
+    signal_entry = build_strategy_signal_entry(
+        state_dir,
+        strategy=profile.name,
         timestamp=run_time,
-    ).entry
+        lookback_points=lookback_points,
+        source=source,
+    )
 
     status = "ok"
-    reason = signal_entry.get("summary", "")
-    decision_id: str | None = None
+    reason = str(signal_entry.get("summary", ""))
+    decision_id = str(signal_entry.get("decision_id", "")).strip() or None
     execution_entry: dict[str, Any] | None = None
-    if profile.uses_ds:
-        ds_result = run_deepseek_shadow(
-            state_dir=strategy_dir,
-            source=f"{source}.{profile.name}.ds",
-            timestamp=run_time,
-            plan_bias=profile.ds_bias or "cautious",
-        )
-        status = ds_result.status
-        reason = ds_result.reason
-        if ds_result.decision_entry is not None:
-            decision_id = str(ds_result.decision_entry.get("decision_id", "")).strip() or None
-            signal_entry = build_signal_entry_from_ds_decision(
-                state_dir=strategy_dir,
-                decision_entry=ds_result.decision_entry,
-                source=f"{source}.{profile.name}.decision",
-                timestamp=run_time,
-            )
-        else:
-            snapshot = strategy_service.build_snapshot(timestamp=run_time)
-            return {
-                "strategy": profile.name,
-                "state_dir": str(strategy_dir),
-                "status": status,
-                "reason": reason,
-                "signal_summary": signal_entry.get("summary"),
-                "decision_id": decision_id,
-                "nav": decimal_to_str(snapshot.nav),
-                "execution": None,
-            }
 
     execution_entry = SimulationExecutor(strategy_dir).execute_cycle(
         timestamp=run_time,
@@ -344,7 +409,82 @@ def build_strategy_comparison(
                 "position_count": len(service.load_positions()),
             }
         )
-    return {"generated_at": generated_at, "strategies": entries}
+    recommended = _recommend_strategy_weights(entries)
+    return {
+        "generated_at": generated_at,
+        "strategies": entries,
+        "recommended_allocation": recommended,
+    }
+
+
+def _score_strategy_row(row: dict[str, Any]) -> Decimal:
+    if not bool(row.get("initialized")):
+        return Decimal("-999")
+    return_pct = to_decimal(row.get("return_pct", "0"))
+    max_drawdown = abs(to_decimal(row.get("max_drawdown_pct", "0")))
+    win_rate = to_decimal(row.get("win_rate", "0"))
+    turnover = to_decimal(row.get("turnover_ratio", "0"))
+    risk_triggers = Decimal(int(row.get("risk_trigger_count", 0) or 0))
+    score = (
+        (return_pct * Decimal("1.0"))
+        - (max_drawdown * Decimal("0.7"))
+        + (win_rate * Decimal("0.25"))
+        - (turnover * Decimal("0.10"))
+        - (risk_triggers * Decimal("0.02"))
+    )
+    return score
+
+
+def _recommend_strategy_weights(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    initialized = [row for row in rows if isinstance(row, dict) and row.get("initialized")]
+    if not initialized:
+        return {
+            "status": "watch",
+            "summary": "No initialized strategy tracks are available for allocation guidance.",
+            "lead_strategy": None,
+            "lead_score": None,
+            "weights": [],
+        }
+
+    scored_rows = []
+    for row in initialized:
+        score = _score_strategy_row(row)
+        scored_rows.append((row, max(score, Decimal("0"))))
+
+    score_sum = sum((score for _, score in scored_rows), Decimal("0"))
+    if score_sum <= 0:
+        even = Decimal("1") / Decimal(len(scored_rows))
+        weighted = [(row, even) for row, _ in scored_rows]
+    else:
+        weighted = [(row, score / score_sum) for row, score in scored_rows]
+
+    weighted.sort(key=lambda item: item[1], reverse=True)
+    lead_row, lead_weight = weighted[0]
+    lead_score = _score_strategy_row(lead_row)
+    status = "ok" if lead_weight >= Decimal("0.45") else "watch"
+
+    return {
+        "status": status,
+        "summary": (
+            f"Suggested lead strategy is {lead_row.get('strategy')} "
+            + f"with allocation weight {decimal_to_str(lead_weight)} based on return/drawdown/win-rate/turnover/risk-trigger scoring."
+        ),
+        "lead_strategy": lead_row.get("strategy"),
+        "lead_score": decimal_to_str(lead_score),
+        "weights": [
+            {
+                "strategy": row.get("strategy"),
+                "weight": decimal_to_str(weight),
+                "score": decimal_to_str(_score_strategy_row(row)),
+                "return_pct": row.get("return_pct"),
+                "max_drawdown_pct": row.get("max_drawdown_pct"),
+                "win_rate": row.get("win_rate"),
+                "turnover_ratio": row.get("turnover_ratio"),
+                "risk_trigger_count": row.get("risk_trigger_count", 0),
+            }
+            for row, weight in weighted
+        ],
+    }
 
 
 def format_strategy_compare_table(compare_payload: dict[str, Any]) -> str:
@@ -356,12 +496,19 @@ def format_strategy_compare_table(compare_payload: dict[str, Any]) -> str:
         ("profit_factor", 14),
         ("turnover", 10),
         ("risk", 6),
+        ("rec_w", 8),
         ("nav", 10),
     ]
     lines = [
         " ".join(label.ljust(width) for label, width in headers),
         " ".join(("-" * len(label)).ljust(width) for label, width in headers),
     ]
+    recommendation = compare_payload.get("recommended_allocation", {})
+    recommended_weights = {
+        str(item.get("strategy")): to_decimal(item.get("weight", "0"))
+        for item in recommendation.get("weights", [])
+        if isinstance(item, dict) and item.get("strategy")
+    }
     for row in compare_payload.get("strategies", []):
         if not isinstance(row, dict):
             continue
@@ -373,6 +520,7 @@ def format_strategy_compare_table(compare_payload: dict[str, Any]) -> str:
             str(row.get("profit_factor", "n/a")),
             "n/a" if row.get("turnover_ratio") is None else f"{to_decimal(row['turnover_ratio']):.2%}",
             str(row.get("risk_trigger_count", 0)),
+            "n/a" if row.get("strategy") not in recommended_weights else f"{recommended_weights[str(row['strategy'])]:.2%}",
             "n/a" if row.get("nav") is None else f"{to_decimal(row['nav']):.2f}",
         ]
         lines.append(" ".join(value.ljust(width) for value, (_, width) in zip(values, headers)))
